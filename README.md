@@ -20,9 +20,12 @@ final class PackageWorkflow
     #[Place('Package discovered', initial: true, next: [self::LOAD])]
     public const DISCOVERED = 'discovered';
 
+    #[Place('Package metadata loaded')]
+    public const LOADED = 'loaded';
+
     #[Transition(
         self::DISCOVERED,
-        'loaded',
+        self::LOADED,
         'Fetch package metadata',
         metadata: ['async' => true, 'transport' => 'package_metadata'],
     )]
@@ -34,7 +37,11 @@ These classes extend Symfony's corresponding attributes, enabled by merged
 [Symfony #66687](https://github.com/symfony/symfony/pull/66687).
 `Place(initial: true)` is now native through
 [#66722](https://github.com/symfony/symfony/pull/66722), not an extras policy.
-String constants and native enum/Arc argument forms remain usable.
+Both transition endpoints reference declared place constants, so each stored place
+name is defined once. We explicitly declare and describe every place and
+transition instead of relying on inferred places, making the definition useful
+to humans and tools. Native backed enum cases and Arc arguments remain usable;
+enums are optional.
 
 | Attribute | Convenience arguments |
 | --- | --- |
