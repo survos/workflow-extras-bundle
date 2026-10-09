@@ -1,0 +1,42 @@
+{
+    "name": "survos/workflow-extras-bundle",
+    "description": "Metadata conveniences and next-transition selection for native Symfony workflows",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "keywords": [
+        "symfony",
+        "workflow",
+        "attributes"
+    ],
+    "require": {
+        "php": "^8.5",
+        "survos/kit-bundle": "^2.5",
+        "symfony/config": "8.2.*@dev",
+        "symfony/dependency-injection": "8.2.*@dev",
+        "symfony/http-kernel": "8.2.*@dev",
+        "symfony/workflow": "8.2.*@dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Survos\\WorkflowExtrasBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Survos\\WorkflowExtrasBundle\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "phpunit"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}
