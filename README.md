@@ -27,7 +27,8 @@ final class PackageWorkflow
         self::DISCOVERED,
         self::LOADED,
         'Fetch package metadata',
-        metadata: ['async' => true, 'transport' => 'package_metadata'],
+        async: true,
+        transport: 'package_metadata',
     )]
     public const LOAD = 'load';
 }
@@ -47,7 +48,7 @@ enums are optional.
 | --- | --- |
 | `AsWorkflow` | Native argument order plus optional `description:` at the end. |
 | `Place` | `description`, `initial`, `metadata`, `next`. |
-| `Transition` | Required `from`, `to`, then `description`, `guard`, `metadata`, `next`. |
+| `Transition` | Required `from`, `to`, then `description`, `guard`, `metadata`, `next`, optional `async` and `transport`. |
 
 Descriptions and ordered `next` lists become ordinary metadata. Non-null typed
 values override their matching metadata keys; null leaves metadata unchanged.
@@ -96,6 +97,15 @@ Async metadata in the example has no execution effect by itself. Install
 [workflow-async-bundle](https://github.com/survos/mono/tree/main/bu/workflow-async-bundle)
 and explicitly dispatch to get queued execution. Extras does not require async;
 async does not require extras. Their integration is through native metadata.
+Extras accepts `async: true, transport: 'package_metadata'` as typed conveniences
+and writes the native metadata consumed by workflow-async-bundle. Omitted options
+preserve existing metadata; conflicting typed values are rejected. The runtime is
+an optional dependency: install both bundles for queued transitions, or extras
+alone for descriptions and next selection. If a native definition contains
+`async: true` without the async runtime enabled, container compilation fails with
+an installation/configuration hint. Installing the package alone is insufficient:
+enable the bundle and configure a subject store and consumable Messenger transport.
+
 You may also use async's typed Transition with extras' AsWorkflow and Place,
 putting a transition description in its native metadata argument.
 

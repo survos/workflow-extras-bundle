@@ -26,6 +26,27 @@ final class AttributesTest extends TestCase
         self::assertSame('Fetch', $transition->metadata['description']);
     }
 
+    public function testTypedAsyncOptionsRemainOptionalMetadata(): void
+    {
+        $native = new Transition('a', 'b');
+        self::assertArrayNotHasKey('async', $native->metadata);
+        $async = new Transition('a', 'b', 'Fetch', async: true, transport: 'downloads');
+        self::assertSame(['async' => true, 'transport' => 'downloads', 'description' => 'Fetch'], $async->metadata);
+        self::assertSame($async->metadata, (new Transition('a', 'b', metadata: $async->metadata))->metadata);
+    }
+
+    public function testTransportCannotSilentlyEnableAsync(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Transition('a', 'b', transport: 'downloads');
+    }
+
+    public function testConflictingAsyncMetadataIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Transition('a', 'b', metadata: ['async' => false], async: true);
+    }
+
     public function testNullDescriptionPreservesNativeMetadata(): void
     {
         self::assertSame('Existing', (new Place(metadata: ['description' => 'Existing']))->metadata['description']);

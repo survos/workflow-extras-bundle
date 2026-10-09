@@ -17,6 +17,13 @@ use Symfony\Component\Workflow\WorkflowBundle;
 // Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)
 final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle
 {
+    public function build(ContainerBuilder $container): void
+    {
+        parent::build($container);
+        // Native attribute registration runs at priority 2.
+        $container->addCompilerPass(new \Survos\WorkflowExtrasBundle\Compiler\RequireAsyncRuntimePass(), priority: 1);
+    }
+
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
         parent::loadExtension($config, $container, $builder);
