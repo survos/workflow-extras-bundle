@@ -30,7 +30,9 @@ final class AsyncRuntimeTest extends TestCase
             $kernel->boot();
             self::assertArrayNotHasKey('MessengerBundle', $kernel->getBundles());
             $workflow = $kernel->getContainer()->get('test.workflow');
-            $subject = new class { public string $marking = SyncDefinition::NEW; };
+            $subject = new class {
+                public string $marking = SyncDefinition::NEW;
+            };
             $workflow->apply($subject, SyncDefinition::FINISH);
             self::assertSame(SyncDefinition::DONE, $subject->marking);
         } finally {
@@ -51,10 +53,25 @@ final class ExtrasOnlyKernel extends AbstractKernel
         $this->directory = sys_get_temp_dir().'/workflow-extras-test-'.bin2hex(random_bytes(6));
     }
 
-    public function getProjectDir(): string { return dirname(__DIR__); }
-    public function getCacheDir(): string { return $this->directory.'/cache'; }
-    public function getLogDir(): string { return $this->directory.'/log'; }
-    public function registerBundles(): iterable { yield new SurvosWorkflowExtrasBundle(); }
+    public function getProjectDir(): string
+    {
+        return dirname(__DIR__);
+    }
+
+    public function getCacheDir(): string
+    {
+        return $this->directory.'/cache';
+    }
+
+    public function getLogDir(): string
+    {
+        return $this->directory.'/log';
+    }
+
+    public function registerBundles(): iterable
+    {
+        yield new SurvosWorkflowExtrasBundle();
+    }
 
     private function configureContainer(ContainerConfigurator $container): void
     {

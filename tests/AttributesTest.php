@@ -83,7 +83,9 @@ final class AttributesTest extends TestCase
     public function testNextResolverPreservesOrderAndDoesNotApply(): void
     {
         $workflow = new StateMachine(new Definition(['a', 'b'], [new NativeTransition('first', 'a', 'b'), new NativeTransition('second', 'a', 'b')], 'a'));
-        $subject = new class { public string $marking = 'a'; };
+        $subject = new class {
+            public string $marking = 'a';
+        };
         $resolver = new NextTransitionResolver();
         self::assertSame('second', $resolver->firstEnabled($workflow, $subject, ['second', 'first']));
         self::assertSame('a', $subject->marking);
@@ -94,7 +96,9 @@ final class AttributesTest extends TestCase
     public function testUnknownNextIsRejectedEvenAfterAnEnabledCandidate(): void
     {
         $workflow = new StateMachine(new Definition(['a', 'b'], [new NativeTransition('go', 'a', 'b')], 'a'));
-        $subject = new class { public string $marking = 'a'; };
+        $subject = new class {
+            public string $marking = 'a';
+        };
         $this->expectException(\InvalidArgumentException::class);
         (new NextTransitionResolver())->firstEnabled($workflow, $subject, ['go', 'typo']);
     }

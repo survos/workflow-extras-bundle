@@ -25,7 +25,7 @@ class Transition extends NativeTransition
         ?string $transport = null,
     ) {
         foreach (['async' => $async, 'transport' => $transport] as $key => $value) {
-            if ($value === null) {
+            if (null === $value) {
                 continue;
             }
             if (array_key_exists($key, $metadata) && $metadata[$key] !== $value) {

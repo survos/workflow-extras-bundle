@@ -21,7 +21,7 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle
     {
         parent::build($container);
         // Native attribute registration runs at priority 2.
-        $container->addCompilerPass(new \Survos\WorkflowExtrasBundle\Compiler\RequireAsyncRuntimePass(), priority: 1);
+        $container->addCompilerPass(new Compiler\RequireAsyncRuntimePass(), priority: 1);
     }
 
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void

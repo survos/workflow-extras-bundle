@@ -34,14 +34,11 @@ final class RequireAsyncRuntimePass implements CompilerPassInterface
                     continue;
                 }
                 foreach ($transitions->getMethodCalls() as [$method, $arguments]) {
-                    if ($method !== 'offsetSet' || ($arguments[1]['async'] ?? false) !== true) {
+                    if ('offsetSet' !== $method || ($arguments[1]['async'] ?? false) !== true) {
                         continue;
                     }
                     $transition = $container->getDefinition((string) $arguments[0])->getArgument(0);
-                    throw new LogicException(sprintf(
-                        'Workflow "%s" transition "%s" is marked async: true. Install survos/workflow-async-bundle and enable SurvosWorkflowAsyncBundle; configure its subject_store and a consumable Symfony Messenger transport. Extras alone does not execute async transitions.',
-                        $tag['name'], $transition,
-                    ));
+                    throw new LogicException(sprintf('Workflow "%s" transition "%s" is marked async: true. Install survos/workflow-async-bundle and enable SurvosWorkflowAsyncBundle; configure its subject_store and a consumable Symfony Messenger transport. Extras alone does not execute async transitions.', $tag['name'], $transition));
                 }
             }
         }
