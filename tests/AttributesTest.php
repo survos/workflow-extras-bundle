@@ -29,15 +29,15 @@ final class AttributesTest extends TestCase
         self::assertSame('Fetch', $transition->metadata['description']);
     }
 
-    public function testDescriptionFirstPositionsRemapOntoNative(): void
+    public function testPositionsMatchNative(): void
     {
-        // Extras keeps description-first positions and remaps them by name onto native.
-        $extras = new Place('Discovered', true, ['label' => 'New']);
-        $native = new NativePlace(description: 'Discovered', metadata: ['label' => 'New'], initial: true);
+        // Leading positional arguments are the native ones, so swapping an import is safe.
+        $extras = new Place('Discovered', ['label' => 'New'], true);
+        $native = new NativePlace('Discovered', ['label' => 'New'], true);
         self::assertSame([$native->metadata, $native->initial], [$extras->metadata, $extras->initial]);
 
         $extras = new Transition('a', 'b', 'Fetch', 'subject.ready', ['label' => 'Load']);
-        $native = new NativeTransitionAttribute('a', 'b', guard: 'subject.ready', description: 'Fetch', metadata: ['label' => 'Load']);
+        $native = new NativeTransitionAttribute('a', 'b', 'Fetch', 'subject.ready', ['label' => 'Load']);
         self::assertSame([$native->guard, $native->metadata], [$extras->guard, $extras->metadata]);
     }
 

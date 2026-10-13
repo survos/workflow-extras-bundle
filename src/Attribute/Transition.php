@@ -8,10 +8,8 @@ use Symfony\Component\Workflow\Arc;
 use Symfony\Component\Workflow\Attribute\Transition as NativeTransition;
 
 /**
- * Description-first Transition plus `next`, `async` and `transport`. Unlike native
- * (from, to, guard, description), the third positional argument is the description;
- * arguments are remapped by name onto the native attribute (symfony/symfony#66872).
- * symfony/symfony#66890 proposes the same order natively.
+ * Native Transition (from, to, description, guard, metadata) plus `next`, `async`
+ * and `transport`. Native owns `description` (symfony/symfony#66872, #66890).
  */
 #[\Attribute(\Attribute::TARGET_CLASS_CONSTANT | \Attribute::IS_REPEATABLE)]
 class Transition extends NativeTransition
@@ -38,6 +36,6 @@ class Transition extends NativeTransition
         if (($metadata['transport'] ?? null) !== null && ($metadata['async'] ?? false) !== true) {
             throw new \InvalidArgumentException('A transport requires async: true.');
         }
-        parent::__construct($from, $to, guard: $guard, description: $description, metadata: Metadata::enhance($metadata, $next));
+        parent::__construct($from, $to, description: $description, guard: $guard, metadata: Metadata::enhance($metadata, $next));
     }
 }

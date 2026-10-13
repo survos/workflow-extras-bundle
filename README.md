@@ -39,8 +39,8 @@ These classes extend Symfony's corresponding attributes, enabled by merged
 `Place(initial: true)` is native through
 [#66722](https://github.com/symfony/symfony/pull/66722), and `description` on
 `AsWorkflow`, `Place` and `Transition` is native through
-[#66872](https://github.com/symfony/symfony/pull/66872): extras remaps its
-arguments onto the native ones by name and stores nothing itself.
+[#66872](https://github.com/symfony/symfony/pull/66872): extras passes it to
+the native attribute and stores nothing itself.
 Both transition endpoints reference declared place constants, so each stored place
 name is defined once. We explicitly declare and describe every place and
 transition instead of relying on inferred places, making the definition useful
@@ -50,17 +50,15 @@ enums are optional.
 | Attribute | Arguments |
 | --- | --- |
 | `AsWorkflow` | Identical to native (including `description`); kept for future workflow-level extras. |
-| `Place` | `description`, `initial`, `metadata`, `next`. |
-| `Transition` | Required `from`, `to`, then `description`, `guard`, `metadata`, `next`, optional `async` and `transport`. |
+| `Place` | Native `description`, `metadata`, `initial`, then `next`. |
+| `Transition` | Native `from`, `to`, `description`, `guard`, `metadata`, then `next`, `async` and `transport`. |
 
-Positions differ from native, which is `Place(description, metadata, initial)`
-and `Transition(from, to, guard, description, metadata)`. In particular, the
-third positional `Transition` argument is a description here but a guard
-expression natively, so name it (`description:`) when switching an import to
-the native attribute. [#66890](https://github.com/symfony/symfony/pull/66890)
-proposes the description-first `Transition(from, to, description, guard, metadata)`
-in core before 8.2 is released; once merged, the positions match. Ordered `next` lists become ordinary metadata. As in core,
-a `description` argument together with a `description` metadata key is rejected.
+Leading positions match native, `Place(description, metadata, initial)` and
+`Transition(from, to, description, guard, metadata)` (description-first since
+[#66890](https://github.com/symfony/symfony/pull/66890)), so switching an import
+between extras and native keeps its meaning. Ordered `next` lists become ordinary
+metadata. As in core, a `description` argument together with a `description`
+metadata key is rejected.
 All other metadata is preserved. Next lists must contain non-empty strings.
 Native parent properties remain readonly, and Transition remains repeatable.
 Do not apply both a native and derived Place/AsWorkflow to the same target;
@@ -68,7 +66,8 @@ Symfony rejects that ambiguity.
 
 Native descriptions came from
 [#66726](https://github.com/symfony/symfony/issues/66726), implemented in
-[#66872](https://github.com/symfony/symfony/pull/66872). Core's dumpers already
+[#66872](https://github.com/symfony/symfony/pull/66872) and made description-first
+in [#66890](https://github.com/symfony/symfony/pull/66890). Core's dumpers already
 read them (`workflow:dump --with-metadata`, PlantUML), as does state-bundle's
 explorer.
 
@@ -124,7 +123,7 @@ async's Transition follows native argument order, including `description`.
 | Capability | Status |
 | --- | --- |
 | Derived AsWorkflow/Place/Transition and metadata conveniences | Implemented |
-| Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native; extras remaps onto it. Description-first native `Transition` proposed in [#66890](https://github.com/symfony/symfony/pull/66890) |
+| Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native, description-first ([#66890](https://github.com/symfony/symfony/pull/66890)) |
 | Ordered first-enabled transition selection | Implemented |
 | Automatic `next` chaining after safe persistence | Planned |
 | Workflow iteration command (`state:iterate` successor) | Planned here, not in async |
