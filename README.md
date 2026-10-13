@@ -57,7 +57,9 @@ Positions differ from native, which is `Place(description, metadata, initial)`
 and `Transition(from, to, guard, description, metadata)`. In particular, the
 third positional `Transition` argument is a description here but a guard
 expression natively, so name it (`description:`) when switching an import to
-the native attribute. Ordered `next` lists become ordinary metadata. As in core,
+the native attribute. [#66890](https://github.com/symfony/symfony/pull/66890)
+proposes the description-first `Transition(from, to, description, guard, metadata)`
+in core before 8.2 is released; once merged, the positions match. Ordered `next` lists become ordinary metadata. As in core,
 a `description` argument together with a `description` metadata key is rejected.
 All other metadata is preserved. Next lists must contain non-empty strings.
 Native parent properties remain readonly, and Transition remains repeatable.
@@ -122,7 +124,7 @@ async's Transition follows native argument order, including `description`.
 | Capability | Status |
 | --- | --- |
 | Derived AsWorkflow/Place/Transition and metadata conveniences | Implemented |
-| Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native; extras remaps onto it |
+| Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native; extras remaps onto it. Description-first native `Transition` proposed in [#66890](https://github.com/symfony/symfony/pull/66890) |
 | Ordered first-enabled transition selection | Implemented |
 | Automatic `next` chaining after safe persistence | Planned |
 | Workflow iteration command (`state:iterate` successor) | Planned here, not in async |
