@@ -36,31 +36,39 @@ final class PackageWorkflow
 
 These classes extend Symfony's corresponding attributes, enabled by merged
 [Symfony #66687](https://github.com/symfony/symfony/pull/66687).
-`Place(initial: true)` is now native through
-[#66722](https://github.com/symfony/symfony/pull/66722), not an extras policy.
+`Place(initial: true)` is native through
+[#66722](https://github.com/symfony/symfony/pull/66722), and `description` on
+`AsWorkflow`, `Place` and `Transition` is native through
+[#66872](https://github.com/symfony/symfony/pull/66872): extras remaps its
+arguments onto the native ones by name and stores nothing itself.
 Both transition endpoints reference declared place constants, so each stored place
 name is defined once. We explicitly declare and describe every place and
 transition instead of relying on inferred places, making the definition useful
 to humans and tools. Native backed enum cases and Arc arguments remain usable;
 enums are optional.
 
-| Attribute | Convenience arguments |
+| Attribute | Arguments |
 | --- | --- |
-| `AsWorkflow` | Native argument order plus optional `description:` at the end. |
+| `AsWorkflow` | Identical to native (including `description`); kept for future workflow-level extras. |
 | `Place` | `description`, `initial`, `metadata`, `next`. |
 | `Transition` | Required `from`, `to`, then `description`, `guard`, `metadata`, `next`, optional `async` and `transport`. |
 
-Descriptions and ordered `next` lists become ordinary metadata. Non-null typed
-values override their matching metadata keys; null leaves metadata unchanged.
+Positions differ from native, which is `Place(description, metadata, initial)`
+and `Transition(from, to, guard, description, metadata)`. In particular, the
+third positional `Transition` argument is a description here but a guard
+expression natively, so name it (`description:`) when switching an import to
+the native attribute. Ordered `next` lists become ordinary metadata. As in core,
+a `description` argument together with a `description` metadata key is rejected.
 All other metadata is preserved. Next lists must contain non-empty strings.
 Native parent properties remain readonly, and Transition remains repeatable.
 Do not apply both a native and derived Place/AsWorkflow to the same target;
 Symfony rejects that ambiguity.
 
-Description-first Place follows the convenience of Console's `Argument` and
-`Option`. [#66726](https://github.com/symfony/symfony/issues/66726) proposes native
-descriptions; it is independent of this package's implementation. If core adopts
-these conveniences, extras can delegate and eventually deprecate its equivalent.
+Native descriptions came from
+[#66726](https://github.com/symfony/symfony/issues/66726), implemented in
+[#66872](https://github.com/symfony/symfony/pull/66872). Core's dumpers already
+read them (`workflow:dump --with-metadata`, PlantUML), as does state-bundle's
+explorer.
 
 ## Next selection, without automatic chaining
 
@@ -106,14 +114,15 @@ alone for descriptions and next selection. If a native definition contains
 an installation/configuration hint. Installing the package alone is insufficient:
 enable the bundle and configure a subject store and consumable Messenger transport.
 
-You may also use async's typed Transition with extras' AsWorkflow and Place,
-putting a transition description in its native metadata argument.
+You may also use async's typed Transition with extras' AsWorkflow and Place;
+async's Transition follows native argument order, including `description`.
 
 ## Current scope and roadmap
 
 | Capability | Status |
 | --- | --- |
 | Derived AsWorkflow/Place/Transition and metadata conveniences | Implemented |
+| Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native; extras remaps onto it |
 | Ordered first-enabled transition selection | Implemented |
 | Automatic `next` chaining after safe persistence | Planned |
 | Workflow iteration command (`state:iterate` successor) | Planned here, not in async |

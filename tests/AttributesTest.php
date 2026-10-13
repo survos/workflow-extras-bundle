@@ -9,28 +9,56 @@ use Survos\WorkflowExtrasBundle\Attribute\AsWorkflow;
 use Survos\WorkflowExtrasBundle\Attribute\Place;
 use Survos\WorkflowExtrasBundle\Attribute\Transition;
 use Survos\WorkflowExtrasBundle\Service\NextTransitionResolver;
+use Symfony\Component\Workflow\Attribute\AsWorkflow as NativeWorkflow;
+use Symfony\Component\Workflow\Attribute\Place as NativePlace;
+use Symfony\Component\Workflow\Attribute\Transition as NativeTransitionAttribute;
 use Symfony\Component\Workflow\Definition;
+use Symfony\Component\Workflow\Exception\LogicException;
 use Symfony\Component\Workflow\StateMachine;
 use Symfony\Component\Workflow\Transition as NativeTransition;
 
 final class AttributesTest extends TestCase
 {
-    public function testDescriptionsAndNextAreMetadataWhileInitialRemainsNative(): void
+    public function testDescriptionsAreNativeAndNextIsMetadata(): void
     {
-        $place = new Place('Discovered', initial: true, metadata: ['description' => 'old', 'label' => 'New'], next: ['fetch', 'skip']);
+        $place = new Place('Discovered', initial: true, metadata: ['label' => 'New'], next: ['fetch', 'skip']);
         self::assertTrue($place->initial);
-        self::assertSame(['description' => 'Discovered', 'label' => 'New', 'next' => ['fetch', 'skip']], $place->metadata);
-        self::assertSame(['description' => 'Process packages'], (new AsWorkflow(description: 'Process packages'))->metadata);
-        $transition = new Transition('a', 'b', 'Fetch', metadata: ['async' => true, 'transport' => 'downloads']);
+        self::assertSame(['label' => 'New', 'next' => ['fetch', 'skip'], 'description' => 'Discovered'], $place->metadata);
+        $transition = new Transition('a', 'b', description: 'Fetch', metadata: ['async' => true, 'transport' => 'downloads']);
         self::assertTrue($transition->metadata['async']);
         self::assertSame('Fetch', $transition->metadata['description']);
+    }
+
+    public function testDescriptionFirstPositionsRemapOntoNative(): void
+    {
+        // Extras keeps description-first positions and remaps them by name onto native.
+        $extras = new Place('Discovered', true, ['label' => 'New']);
+        $native = new NativePlace(description: 'Discovered', metadata: ['label' => 'New'], initial: true);
+        self::assertSame([$native->metadata, $native->initial], [$extras->metadata, $extras->initial]);
+
+        $extras = new Transition('a', 'b', 'Fetch', 'subject.ready', ['label' => 'Load']);
+        $native = new NativeTransitionAttribute('a', 'b', guard: 'subject.ready', description: 'Fetch', metadata: ['label' => 'Load']);
+        self::assertSame([$native->guard, $native->metadata], [$extras->guard, $extras->metadata]);
+    }
+
+    public function testAsWorkflowIsTheNativeAttribute(): void
+    {
+        $workflow = new AsWorkflow(supports: \stdClass::class, description: 'Process packages');
+        self::assertInstanceOf(NativeWorkflow::class, $workflow);
+        self::assertSame(['description' => 'Process packages'], $workflow->metadata);
+    }
+
+    public function testDescriptionArgumentAndMetadataKeyConflictAsInCore(): void
+    {
+        $this->expectException(LogicException::class);
+        new Place('Discovered', metadata: ['description' => 'old']);
     }
 
     public function testTypedAsyncOptionsRemainOptionalMetadata(): void
     {
         $native = new Transition('a', 'b');
         self::assertArrayNotHasKey('async', $native->metadata);
-        $async = new Transition('a', 'b', 'Fetch', async: true, transport: 'downloads');
+        $async = new Transition('a', 'b', description: 'Fetch', async: true, transport: 'downloads');
         self::assertSame(['async' => true, 'transport' => 'downloads', 'description' => 'Fetch'], $async->metadata);
         self::assertSame($async->metadata, (new Transition('a', 'b', metadata: $async->metadata))->metadata);
     }
