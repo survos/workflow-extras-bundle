@@ -41,6 +41,6 @@
         }
     },
     "suggest": {
-        "survos/workflow-async-bundle": "Execute transitions marked async through Symfony Messenger"
+        "survos/workflow-messenger-bundle": "Execute transitions marked async through Symfony Messenger"
     }
 }

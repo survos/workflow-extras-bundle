@@ -16,7 +16,7 @@ final class RequireAsyncRuntimePass implements CompilerPassInterface
     public function process(ContainerBuilder $container): void
     {
         // A class existing in vendor is insufficient: the runtime must be enabled.
-        if ($container->hasDefinition('Survos\\WorkflowAsyncBundle\\Service\\TransitionHandler')) {
+        if ($container->hasDefinition('Survos\\WorkflowMessengerBundle\\Service\\TransitionHandler')) {
             return;
         }
         foreach ($container->findTaggedServiceIds('workflow') as $tags) {
@@ -38,7 +38,7 @@ final class RequireAsyncRuntimePass implements CompilerPassInterface
                         continue;
                     }
                     $transition = $container->getDefinition((string) $arguments[0])->getArgument(0);
-                    throw new LogicException(sprintf('Workflow "%s" transition "%s" is marked async: true. Install survos/workflow-async-bundle and enable SurvosWorkflowAsyncBundle; configure its subject_store and a consumable Symfony Messenger transport. Extras alone does not execute async transitions.', $tag['name'], $transition));
+                    throw new LogicException(sprintf('Workflow "%s" transition "%s" is marked async: true. Install survos/workflow-messenger-bundle and enable SurvosWorkflowMessengerBundle; configure its subject_store and a consumable Symfony Messenger transport. Extras alone does not execute async transitions.', $tag['name'], $transition));
                 }
             }
         }

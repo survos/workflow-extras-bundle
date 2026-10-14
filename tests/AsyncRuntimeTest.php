@@ -19,7 +19,7 @@ final class AsyncRuntimeTest extends TestCase
     {
         $kernel = new ExtrasOnlyKernel(AsyncDefinition::class);
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Install survos/workflow-async-bundle');
+        $this->expectExceptionMessage('Install survos/workflow-messenger-bundle');
         $kernel->boot();
     }
 

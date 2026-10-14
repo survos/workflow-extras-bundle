@@ -116,7 +116,7 @@ Twig or Messenger. Kit itself requires PHP 8.5 and HttpKernel.
 
 Extras owns common attributes and next selection. It does not declare typed
 `async` or `transport` arguments. For queued paths use
-`Survos\WorkflowAsyncBundle\Attribute\Transition` (often aliased as
+`Survos\WorkflowMessengerBundle\Attribute\Transition` (often aliased as
 `AsyncTransition`); that attribute extends extras, retaining every common argument
 in the same position and appending `async` and `transport`. Async requires extras;
 extras remains usable without Messenger or async. Native metadata remains an
@@ -137,7 +137,7 @@ runtime fails compilation with an installation/configuration hint.
 
 The first example is the packages workflow: metadata and README fetching on
 separate queues, with ordinary validation between them. Start with
-[the example in mono](https://github.com/survos/mono/tree/main/bu/workflow-async-bundle/examples/packages).
+[the example in mono](https://github.com/survos/mono/tree/main/bu/workflow-messenger-bundle/examples/packages).
 Its test suite also runs this bundle's tests. The next application checkpoints are
 searchbench and harvest. The packages application now uses both bundles without
 state-bundle; its `state:iterate` and `state:stats` commands remain application-owned.
@@ -182,3 +182,16 @@ With Symfony UX Icons enabled, the explorer renders these beside place and
 transition labels. Without UX Icons it keeps the labels and omits icons. Twig
 consumers can use `workflow_icon(icon, iconClass)` for consistent rendering.
 The async execution indicator remains separate. No inline iconStyle is provided.
+
+## Optional Doctrine continuation
+
+With DoctrineBundle installed, `WorkflowKickoffListener` collects inserted subjects
+and native completion events, then invokes opted-in `WorkflowContinuationInterface`
+adapters after flush. An autoconfigured adapter declares which subjects/workflow it
+supports and implements kickoff and continuation. It owns initial-place policy,
+persistence and dispatch; extras does not require Messenger or assume a string
+marking. Completion events are drained only by the entity manager managing the
+subject. Nested flushes are guarded, and worker reset clears pending work.
+
+A flush inside an active outer transaction is rejected: use an outbox for those
+producers. Post-flush dispatch alone is not atomic with the database commit.

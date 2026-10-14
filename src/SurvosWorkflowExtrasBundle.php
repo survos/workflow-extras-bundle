@@ -24,6 +24,7 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle
     public function build(ContainerBuilder $container): void
     {
         parent::build($container);
+        $container->registerForAutoconfiguration(Contract\WorkflowContinuationInterface::class)->addTag('workflow_extras.continuation');
         $container->registerAttributeForAutoconfiguration(AsWorkflow::class, static function (ChildDefinition $definition) {
             $definition->addTag('.workflow_extras.labels');
         });
@@ -37,6 +38,11 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle
     {
         parent::loadExtension($config, $container, $builder);
         $container->services()->set(NextTransitionResolver::class);
+        if (class_exists(\Doctrine\Bundle\DoctrineBundle\DoctrineBundle::class)) {
+            $container->services()->set(EventListener\WorkflowKickoffListener::class)
+                ->autoconfigure()
+                ->arg('$continuations', \Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator('workflow_extras.continuation'));
+        }
         if (class_exists(\Twig\Extension\AbstractExtension::class)) {
             $container->services()->set(Twig\WorkflowIconExtension::class)
                 ->autowire()->tag('twig.extension');
