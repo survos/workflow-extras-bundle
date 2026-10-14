@@ -142,7 +142,7 @@ runtime fails compilation with an installation/configuration hint.
 | Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native, description-first ([#66890](https://github.com/symfony/symfony/pull/66890)) |
 | Ordered first-enabled transition selection | Implemented |
 | Synchronous `next` chaining without Messenger | Implemented; persistence adapters can defer it |
-| Workflow iteration commands | Application-owned in packages; no generic persistence command yet |
+| `state:iterate` / `state:stats` for Doctrine entities | Implemented (optional, with DoctrineBundle) |
 | Explorer template, graph controller and grouped transition paths | Implemented optional integration |
 | State-bundle migration and deprecation | After validated replacements and migration documentation |
 
@@ -151,7 +151,7 @@ separate queues, with ordinary validation between them. Start with
 [the example in mono](https://github.com/survos/mono/tree/main/bu/workflow-messenger-bundle/examples/packages).
 Its test suite also runs this bundle's tests. The next application checkpoints are
 searchbench and harvest. The packages application now uses both bundles without
-state-bundle; its `state:iterate` and `state:stats` commands remain application-owned.
+state-bundle, and without workflow commands, controllers or adapters of its own.
 
 From a standalone bundle checkout, `composer install` followed by `composer test`
 runs its focused attribute/selector tests. The mono example additionally tests
@@ -161,20 +161,23 @@ native discovery and real Messenger execution with both bundles enabled.
 
 Inject `Survos\WorkflowExtrasBundle\Service\WorkflowCatalog` for tooling that
 needs workflow declarations without constructing an entity. `all()` returns
-names with declared `supports`, `definition_class` and `type`; `forClass()` returns
-all matching names, including interface matches; `get()` retrieves the native
-workflow service. Runtime eligibility remains Symfony Registry's responsibility,
-especially for custom support strategies.
+names with declared `supports`, `support_strategy`, `source_class` and `type`;
+`forClass()` returns all matching names, including interface matches; `get()`
+retrieves the native workflow service. Runtime eligibility remains Symfony
+Registry's responsibility, especially for custom support strategies.
 
-The catalog consumes native workflow service tags. Until
-[Symfony #66926](https://github.com/symfony/symfony/pull/66926) lands, the existing
-attribute label pass fills missing declaration fields for extras workflows.
-Native tag values take precedence. Configuration-defined workflows without those
-native fields remain available by name, with unknown support declarations.
+The catalog copies the native `workflow` service tag attributes added by
+[Symfony #66926](https://github.com/symfony/symfony/pull/66926) (8.2). `source_class`
+is null for configuration-defined workflows; a workflow with a `support_strategy`
+declares no `supports`. Default labels apply to every workflow with a
+`source_class`, so plain native `#[AsWorkflow]` classes get them too. Use a
+`symfony/workflow` 8.2 revision that contains #66926.
 
-The optional `@SurvosWorkflowExtras/workflow.html.twig` template and
-`survos--workflow-extras-bundle--workflow` Stimulus controller provide the explorer.
-The consuming application owns the route, access control and Twig/Stimulus setup.
+The explorer is routed at `/workflow/{flowCode}` (route `survos_workflow_extras`)
+when Twig is installed, using the `@SurvosWorkflowExtras/workflow.html.twig` template
+and the `survos--workflow-extras-bundle--workflow` Stimulus controller. It is
+read-only. Move or hide it with `route_prefix` and `routes_enabled: false`; access
+control stays with the application's firewall.
 Use `TransitionGroups::forWorkflow()` for its transition sidebar: repeated names
 with identical metadata share a heading while each path remains explicit.
 Different guards stay separate, and multi-place requirements are not merged.
@@ -194,15 +197,38 @@ transition labels. Without UX Icons it keeps the labels and omits icons. Twig
 consumers can use `workflow_icon(icon, iconClass)` for consistent rendering.
 The async execution indicator remains separate. No inline iconStyle is provided.
 
+## Doctrine commands
+
+With DoctrineBundle and Console installed, for any entity a workflow `supports`
+(short name or class; `--workflow-name` when several workflows support it):
+
+```bash
+bin/console state:stats Package                       # rows per place, with outgoing transitions
+bin/console state:iterate Package -m discovered       # each row's first enabled `next`
+bin/console state:iterate Package -m documented -t load --filter='vendor=symfony' --limit=10
+bin/console state:iterate Package -m discovered --sync  # handle everything in this process
+```
+
+Transitions go through the configured executor: applied (and flushed) directly
+with extras alone, queued with workflow-messenger. `--sync` wraps the run in
+`TransitionExecutorInterface::synchronously()`, so continuations and kickoffs of
+entities created along the way are handled in-process too. `--cascade=none` runs
+only the selected transition. A state machine's place is filtered in SQL through
+its marking property; other workflows are read per entity.
+
 ## Optional Doctrine continuation
 
-With DoctrineBundle installed, `WorkflowKickoffListener` collects inserted subjects
-and native completion events, then invokes opted-in `WorkflowContinuationInterface`
-adapters after flush. An autoconfigured adapter declares which subjects/workflow it
-supports and implements kickoff and continuation. It owns initial-place policy,
-persistence and dispatch; extras does not require Messenger or assume a string
-marking. Completion events are drained only by the entity manager managing the
-subject. Nested flushes are guarded, and worker reset clears pending work.
+With DoctrineBundle installed, `WorkflowKickoffListener` needs no application code.
+Before insert, an entity whose marking is empty (null or uninitialized) gets its
+workflow's initial place(s) from native `getMarking()`, so constructors need not set
+it: declare `public ?MyPlace $marking = null;`. After a flush, an entity persisted in its workflow's initial place runs the first
+enabled `next` of that place; an entity imported in a later place is left alone.
+Workflows are found by their declared `supports`. Without Messenger, `next`
+transitions apply immediately and the listener flushes the result. With
+workflow-messenger-bundle, a transition applied directly by application code
+continues once its entity is flushed, and queued requests continue in the worker.
+Completion events are drained only by the entity manager managing the subject.
+Nested flushes are guarded, and worker reset clears pending work.
 
 A flush inside an active outer transaction is rejected: use an outbox for those
 producers. Post-flush dispatch alone is not atomic with the database commit.

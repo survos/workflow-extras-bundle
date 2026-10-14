@@ -14,11 +14,24 @@ final readonly class NextTransitionRunner
     {
     }
 
-    public function continue(WorkflowInterface $workflow, object $subject, array $context = [], ?Transition $previous = null): void
+    /** @return ?string the transition started, if any; none with `cascade: none` */
+    public function continue(WorkflowInterface $workflow, object $subject, array $context = [], ?Transition $previous = null): ?string
     {
         if (($context['cascade'] ?? null) === 'none') {
-            return;
+            return null;
         }
+
+        return $this->start($workflow, $subject, $context, $previous);
+    }
+
+    /**
+     * Start the first enabled `next` of $previous, else of the current places. Unlike
+     * continue(), `cascade` only governs what follows the started transition.
+     *
+     * @return ?string the transition started, if any
+     */
+    public function start(WorkflowInterface $workflow, object $subject, array $context = [], ?Transition $previous = null): ?string
+    {
         $marking = $workflow->getMarking($subject)->getPlaces();
         $metadata = $workflow->getMetadataStore();
         $next = $previous ? $metadata->getTransitionMetadata($previous)['next'] ?? null : null;
@@ -31,7 +44,7 @@ final readonly class NextTransitionRunner
         }
         $name = $this->resolver->firstEnabled($workflow, $subject, array_values(array_unique(is_string($next) ? [$next] : $next)));
         if (null === $name) {
-            return;
+            return null;
         }
         ksort($marking);
         $step = hash('sha256', serialize([$workflow->getName(), $marking, $name]));
@@ -40,5 +53,7 @@ final readonly class NextTransitionRunner
         }
         $context['workflow_extras.visited'][$step] = true;
         $this->executor->execute($workflow, $subject, $name, $context);
+
+        return $name;
     }
 }

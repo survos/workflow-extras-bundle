@@ -18,4 +18,9 @@ final class DirectTransitionExecutor implements TransitionExecutorInterface
     {
         $workflow->apply($subject, $transition, $context);
     }
+
+    public function synchronously(callable $callback): mixed
+    {
+        return $callback();
+    }
 }

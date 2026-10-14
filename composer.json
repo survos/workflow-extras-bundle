@@ -41,6 +41,8 @@
         }
     },
     "suggest": {
-        "survos/workflow-messenger-bundle": "Execute transitions marked async through Symfony Messenger"
+        "survos/workflow-messenger-bundle": "Execute transitions marked async through Symfony Messenger",
+        "doctrine/doctrine-bundle": "Initial marking and kickoff on persist, plus state:iterate and state:stats",
+        "symfony/twig-bundle": "The workflow explorer at /workflow/{flowCode}"
     }
 }

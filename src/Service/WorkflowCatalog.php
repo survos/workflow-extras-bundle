@@ -14,7 +14,7 @@ final readonly class WorkflowCatalog
     {
     }
 
-    /** @return array<string, array{supports: list<class-string>, definition_class: ?class-string, type: string}> */
+    /** @return array<string, array{supports: list<class-string>, support_strategy: ?string, source_class: ?class-string, type: string, marking_property: ?string}> */
     public function all(): array
     {
         return $this->definitions;
