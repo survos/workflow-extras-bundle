@@ -59,6 +59,9 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle implements C
                     ->autowire()->autoconfigure();
             }
         }
+        if ($config['routes_enabled'] && class_exists(\Survos\MenuBundle\SurvosMenuBundle::class)) {
+            $container->services()->set(Menu\WorkflowMenuListener::class)->autowire()->autoconfigure();
+        }
         if (class_exists(\Twig\Extension\AbstractExtension::class)) {
             $container->services()->set(Twig\WorkflowIconExtension::class)
                 ->autowire()->tag('twig.extension');
