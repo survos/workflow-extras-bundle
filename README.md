@@ -27,8 +27,7 @@ final class PackageWorkflow
         self::DISCOVERED,
         self::LOADED,
         'Fetch package metadata',
-        async: true,
-        transport: 'package_metadata',
+        label: 'Load',
     )]
     public const LOAD = 'load';
 }
@@ -50,26 +49,39 @@ enums are optional.
 | Attribute | Arguments |
 | --- | --- |
 | `AsWorkflow` | Identical to native (including `description`); kept for future workflow-level extras. |
-| `Place` | Native `description`, `metadata`, `initial`, then `next`. |
-| `Transition` | Native `from`, `to`, `description`, `guard`, `metadata`, then `next`, `async` and `transport`. |
+| `Place` | `description`, `label`, `next`, `initial`, `metadata`, `icon`, `iconClass`. |
+| `Transition` | `from`, `to`, `description`, `label`, `next`, `guard`, `metadata`, `icon`, `iconClass`. |
 
-Leading positions match native, `Place(description, metadata, initial)` and
-`Transition(from, to, description, guard, metadata)` (description-first since
-[#66890](https://github.com/symfony/symfony/pull/66890)), so switching an import
-between extras and native keeps its meaning. Ordered `next` lists become ordinary
-metadata. As in core, a `description` argument together with a `description`
-metadata key is rejected.
-All other metadata is preserved. Next lists must contain non-empty strings.
+These convenience signatures intentionally differ from native positional arguments.
+Use named arguments after the description when migrating existing declarations.
+`label` and `next` become native metadata. `next` accepts a transition name or an
+ordered list, normalized to a list; null omits it and an empty list stays empty.
+Metadata-only `next` values are normalized too. Names must be non-empty strings;
+associative lists and conflicting explicit/metadata values are rejected.
+A matching label or normalized next value in both locations is accepted.
+Other metadata is preserved. Native description conflict rules still apply.
 Native parent properties remain readonly, and Transition remains repeatable.
-Do not apply both a native and derived Place/AsWorkflow to the same target;
-Symfony rejects that ambiguity.
+Do not apply both a native and derived Place/AsWorkflow to the same target.
+
+With the extras bundle enabled, missing labels are filled during container
+compilation from the PHP enum case or constant name: `Discovered = 'new'` displays
+"Discovered", and `FETCH_DOCS = 'fetch_docs'` displays "Fetch docs". CamelCase and
+underscores are humanized to sentence case; legacy `PLACE_` / `TRANSITION_`
+prefixes are omitted. Explicit labels (including metadata labels) win. The generated
+label is ordinary metadata, shared by native dumpers and the explorer. Direct
+attribute construction without container compilation cannot infer its declaration
+name. Stored identifiers remain unchanged.
+
+Place attributes can be applied to string-backed enum cases; pass the enum class
+as `AsWorkflow(places: PackagePlace::class)` and use cases directly as transition
+endpoints. Place labels, descriptions, initial flags and next candidates are read
+by Symfony's native attribute reader.
 
 Native descriptions came from
 [#66726](https://github.com/symfony/symfony/issues/66726), implemented in
 [#66872](https://github.com/symfony/symfony/pull/66872) and made description-first
 in [#66890](https://github.com/symfony/symfony/pull/66890). Core's dumpers already
-read them (`workflow:dump --with-metadata`, PlantUML), as does state-bundle's
-explorer.
+read them (`workflow:dump --with-metadata`, PlantUML), as does this bundle's optional explorer template.
 
 ## Next selection, without automatic chaining
 
@@ -102,21 +114,14 @@ Review and lock the resolved versions. Enable
 It requires WorkflowBundle and Survos Kit, not FrameworkBundle, Doctrine ORM,
 Twig or Messenger. Kit itself requires PHP 8.5 and HttpKernel.
 
-Async metadata in the example has no execution effect by itself. Install
-[workflow-async-bundle](https://github.com/survos/mono/tree/main/bu/workflow-async-bundle)
-and explicitly dispatch to get queued execution. Extras does not require async;
-async does not require extras. Their integration is through native metadata.
-Extras accepts `async: true, transport: 'package_metadata'` as typed conveniences
-and writes the native metadata consumed by workflow-async-bundle. Omitted options
-preserve existing metadata; conflicting typed values are rejected. The runtime is
-an optional dependency: install both bundles for queued transitions, or extras
-alone for descriptions and next selection. If a native definition contains
-`async: true` without the async runtime enabled, container compilation fails with
-an installation/configuration hint. Installing the package alone is insufficient:
-enable the bundle and configure a subject store and consumable Messenger transport.
-
-You may also use async's typed Transition with extras' AsWorkflow and Place;
-async's Transition follows native argument order, including `description`.
+Extras owns common attributes and next selection. It does not declare typed
+`async` or `transport` arguments. For queued paths use
+`Survos\WorkflowAsyncBundle\Attribute\Transition` (often aliased as
+`AsyncTransition`); that attribute extends extras, retaining every common argument
+in the same position and appending `async` and `transport`. Async requires extras;
+extras remains usable without Messenger or async. Native metadata remains an
+interoperability option. A definition with `async: true` but no enabled async
+runtime fails compilation with an installation/configuration hint.
 
 ## Current scope and roadmap
 
@@ -126,17 +131,54 @@ async's Transition follows native argument order, including `description`.
 | Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native, description-first ([#66890](https://github.com/symfony/symfony/pull/66890)) |
 | Ordered first-enabled transition selection | Implemented |
 | Automatic `next` chaining after safe persistence | Planned |
-| Workflow iteration command (`state:iterate` successor) | Planned here, not in async |
-| Explorer, place/transition tables, diagram icons and Twig helpers | Planned optional integration |
+| Workflow iteration commands | Application-owned in packages; no generic persistence command yet |
+| Explorer template, graph controller and grouped transition paths | Implemented optional integration |
 | State-bundle migration and deprecation | After validated replacements and migration documentation |
 
 The first example is the packages workflow: metadata and README fetching on
 separate queues, with ordinary validation between them. Start with
 [the example in mono](https://github.com/survos/mono/tree/main/bu/workflow-async-bundle/examples/packages).
 Its test suite also runs this bundle's tests. The next application checkpoints are
-packages, searchbench and harvest; these applications have not been migrated by
-this scaffold.
+searchbench and harvest. The packages application now uses both bundles without
+state-bundle; its `state:iterate` and `state:stats` commands remain application-owned.
 
 From a standalone bundle checkout, `composer install` followed by `composer test`
 runs its focused attribute/selector tests. The mono example additionally tests
 native discovery and real Messenger execution with both bundles enabled.
+
+## Workflow catalog and optional explorer
+
+Inject `Survos\WorkflowExtrasBundle\Service\WorkflowCatalog` for tooling that
+needs workflow declarations without constructing an entity. `all()` returns
+names with declared `supports`, `definition_class` and `type`; `forClass()` returns
+all matching names, including interface matches; `get()` retrieves the native
+workflow service. Runtime eligibility remains Symfony Registry's responsibility,
+especially for custom support strategies.
+
+The catalog consumes native workflow service tags. Until
+[Symfony #66926](https://github.com/symfony/symfony/pull/66926) lands, the existing
+attribute label pass fills missing declaration fields for extras workflows.
+Native tag values take precedence. Configuration-defined workflows without those
+native fields remain available by name, with unknown support declarations.
+
+The optional `@SurvosWorkflowExtras/workflow.html.twig` template and
+`survos--workflow-extras-bundle--workflow` Stimulus controller provide the explorer.
+The consuming application owns the route, access control and Twig/Stimulus setup.
+Use `TransitionGroups::forWorkflow()` for its transition sidebar: repeated names
+with identical metadata share a heading while each path remains explicit.
+Different guards stay separate, and multi-place requirements are not merged.
+`WorkflowGraphvizDumper` draws state machines; use Symfony's native
+`GraphvizDumper` for workflows with multiple simultaneous places.
+
+## Optional icons
+
+Place and Transition accept `icon` (for example `tabler:circle-check`) and
+`iconClass` (for example `text-success`). These become native metadata, including
+when inherited by async transitions. Conflicting explicit and metadata values
+are rejected. Async-only arguments follow all extras arguments; prefer named
+arguments when adopting new options.
+
+With Symfony UX Icons enabled, the explorer renders these beside place and
+transition labels. Without UX Icons it keeps the labels and omits icons. Twig
+consumers can use `workflow_icon(icon, iconClass)` for consistent rendering.
+The async execution indicator remains separate. No inline iconStyle is provided.

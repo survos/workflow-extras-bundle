@@ -7,35 +7,26 @@ namespace Survos\WorkflowExtrasBundle\Attribute;
 use Symfony\Component\Workflow\Arc;
 use Symfony\Component\Workflow\Attribute\Transition as NativeTransition;
 
-/**
- * Native Transition (from, to, description, guard, metadata) plus `next`, `async`
- * and `transport`. Native owns `description` (symfony/symfony#66872, #66890).
- */
+/** Native transition with a label and ordered next-transition candidates. */
 #[\Attribute(\Attribute::TARGET_CLASS_CONSTANT | \Attribute::IS_REPEATABLE)]
 class Transition extends NativeTransition
 {
+    /** @param string|list<string>|null $next Ordered candidates; selection does not execute them. */
     public function __construct(
         \BackedEnum|Arc|string|array $from,
         \BackedEnum|Arc|string|array $to,
         ?string $description = null,
+        ?string $label = null,
+        string|array|null $next = null,
         ?string $guard = null,
         array $metadata = [],
-        ?array $next = null,
-        ?bool $async = null,
-        ?string $transport = null,
+        ?string $icon = null,
+        ?string $iconClass = null,
     ) {
-        foreach (['async' => $async, 'transport' => $transport] as $key => $value) {
-            if (null === $value) {
-                continue;
-            }
-            if (array_key_exists($key, $metadata) && $metadata[$key] !== $value) {
-                throw new \InvalidArgumentException(sprintf('Use the "%s" argument instead of conflicting metadata.', $key));
-            }
-            $metadata[$key] = $value;
+        // Keep the explorer's expression identical to the native execution guard.
+        if (null !== $guard) {
+            $metadata['guard'] = $guard;
         }
-        if (($metadata['transport'] ?? null) !== null && ($metadata['async'] ?? false) !== true) {
-            throw new \InvalidArgumentException('A transport requires async: true.');
-        }
-        parent::__construct($from, $to, description: $description, guard: $guard, metadata: Metadata::enhance($metadata, $next));
+        parent::__construct($from, $to, description: $description, guard: $guard, metadata: Metadata::enhance($metadata, $next, $label, $icon, $iconClass));
     }
 }

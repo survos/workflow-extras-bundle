@@ -23,6 +23,24 @@ final class AsyncRuntimeTest extends TestCase
         $kernel->boot();
     }
 
+    public function testDefaultLabelsUseDeclarationNamesAndRespectOverrides(): void
+    {
+        $kernel = new ExtrasOnlyKernel(LabelDefinition::class);
+        try {
+            $kernel->boot();
+            $store = $kernel->getContainer()->get('test.workflow')->getMetadataStore();
+            self::assertSame('Discovered', $store->getPlaceMetadata('new')['label']);
+            self::assertSame('Custom finished label', $store->getPlaceMetadata('done')['label']);
+            self::assertSame('Waiting review', $store->getPlaceMetadata('review')['label']);
+            $transitions = $kernel->getContainer()->get('test.workflow')->getDefinition()->getTransitions();
+            self::assertSame('Finish processing', $store->getTransitionMetadata($transitions[0])['label']);
+            self::assertSame('Custom retry', $store->getTransitionMetadata($transitions[1])['label']);
+            self::assertSame('Finish processing', $store->getTransitionMetadata($transitions[2])['label']);
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
     public function testSynchronousNextNeedsNoMessengerBundle(): void
     {
         $kernel = new ExtrasOnlyKernel(SyncDefinition::class);
@@ -89,7 +107,7 @@ final class AsyncDefinition
     public const NEW = 'new';
     #[Place('Done')]
     public const DONE = 'done';
-    #[Transition(self::NEW, self::DONE, 'Finish asynchronously', async: true, transport: 'jobs')]
+    #[Transition(self::NEW, self::DONE, 'Finish asynchronously', metadata: ['async' => true, 'transport' => 'jobs'])]
     public const FINISH = 'finish';
 }
 
@@ -102,4 +120,28 @@ final class SyncDefinition
     public const DONE = 'done';
     #[Transition(self::NEW, self::DONE, 'Finish synchronously')]
     public const FINISH = 'finish';
+}
+
+enum LabelPlace: string
+{
+    #[Place(initial: true)]
+    case Discovered = 'new';
+    #[Place(label: 'Custom finished label')]
+    case Finished = 'done';
+}
+
+#[AsWorkflow(name: 'test')]
+final class LabelDefinition
+{
+    #[Place]
+    public const WAITING_REVIEW = 'review';
+
+    #[Transition(LabelPlace::Discovered, LabelPlace::Finished)]
+    public const FINISH_PROCESSING = 'finish';
+
+    #[Transition(LabelPlace::Finished, self::WAITING_REVIEW, label: 'Custom retry')]
+    public const RETRY = 'retry';
+
+    #[Transition(self::WAITING_REVIEW, LabelPlace::Finished)]
+    public const TRANSITION_FINISH_PROCESSING = 'finish';
 }

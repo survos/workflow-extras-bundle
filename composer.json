@@ -6,7 +6,8 @@
     "keywords": [
         "symfony",
         "workflow",
-        "attributes"
+        "attributes",
+        "symfony-ux"
     ],
     "require": {
         "php": "^8.5",

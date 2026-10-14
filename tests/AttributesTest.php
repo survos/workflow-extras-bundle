@@ -10,8 +10,6 @@ use Survos\WorkflowExtrasBundle\Attribute\Place;
 use Survos\WorkflowExtrasBundle\Attribute\Transition;
 use Survos\WorkflowExtrasBundle\Service\NextTransitionResolver;
 use Symfony\Component\Workflow\Attribute\AsWorkflow as NativeWorkflow;
-use Symfony\Component\Workflow\Attribute\Place as NativePlace;
-use Symfony\Component\Workflow\Attribute\Transition as NativeTransitionAttribute;
 use Symfony\Component\Workflow\Definition;
 use Symfony\Component\Workflow\Exception\LogicException;
 use Symfony\Component\Workflow\StateMachine;
@@ -29,16 +27,64 @@ final class AttributesTest extends TestCase
         self::assertSame('Fetch', $transition->metadata['description']);
     }
 
-    public function testPositionsMatchNative(): void
+    public function testConvenienceArgumentOrder(): void
     {
-        // Leading positional arguments are the native ones, so swapping an import is safe.
-        $extras = new Place('Discovered', ['label' => 'New'], true);
-        $native = new NativePlace('Discovered', ['label' => 'New'], true);
-        self::assertSame([$native->metadata, $native->initial], [$extras->metadata, $extras->initial]);
+        $place = new Place('Discovered', 'New', 'fetch', true, ['color' => 'blue']);
+        self::assertTrue($place->initial);
+        self::assertSame(['color' => 'blue', 'next' => ['fetch'], 'label' => 'New', 'description' => 'Discovered'], $place->metadata);
+        $transition = new Transition('a', 'b', 'Fetch', 'Load', 'validate', 'subject.ready', ['color' => 'blue']);
+        self::assertSame('subject.ready', $transition->guard);
+        self::assertSame(['validate'], $transition->metadata['next']);
+        self::assertSame('Load', $transition->metadata['label']);
+    }
 
-        $extras = new Transition('a', 'b', 'Fetch', 'subject.ready', ['label' => 'Load']);
-        $native = new NativeTransitionAttribute('a', 'b', 'Fetch', 'subject.ready', ['label' => 'Load']);
-        self::assertSame([$native->guard, $native->metadata], [$extras->guard, $extras->metadata]);
+    public function testNextNormalizesWithoutLosingOrderOrEmptyList(): void
+    {
+        self::assertArrayNotHasKey('next', (new Place())->metadata);
+        self::assertSame([], (new Place(next: []))->metadata['next']);
+        self::assertSame(['fetch'], (new Place(next: 'fetch'))->metadata['next']);
+        self::assertSame(['skip', 'fetch'], (new Transition('a', 'b', next: ['skip', 'fetch']))->metadata['next']);
+        self::assertSame(['fetch'], (new Place(next: 'fetch', metadata: ['next' => ['fetch']]))->metadata['next']);
+        self::assertSame(['fetch'], (new Place(metadata: ['next' => 'fetch']))->metadata['next']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidMetadata')]
+    public function testInvalidOrConflictingMetadataIsRejected(array $arguments): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Place(...$arguments);
+    }
+
+    public static function invalidMetadata(): iterable
+    {
+        yield [['next' => '']];
+        yield [['next' => [' ']]];
+        yield [['next' => ['first' => 'fetch']]];
+        yield [['next' => [42]]];
+        yield [['next' => 'fetch', 'metadata' => ['next' => ['skip']]]];
+        yield [['label' => 'New', 'metadata' => ['label' => 'Old']]];
+        yield [['metadata' => ['next' => null]]];
+    }
+
+    public function testExtrasDoesNotDeclareAsyncOptions(): void
+    {
+        $parameters = array_map(static fn ($p) => $p->getName(), (new \ReflectionMethod(Transition::class, '__construct'))->getParameters());
+        self::assertNotContains('async', $parameters);
+        self::assertNotContains('transport', $parameters);
+        self::assertArrayNotHasKey('async', (new Transition('a', 'b'))->metadata);
+    }
+
+    public function testNativeReaderLoadsEnumPlaceMetadataAndEndpoints(): void
+    {
+        $class = new \ReflectionClass(EnumDefinition::class);
+        $attribute = $class->getAttributes(AsWorkflow::class)[0]->newInstance();
+        $config = (new \Symfony\Component\Workflow\DependencyInjection\AttributeReader())->read($attribute, $class)['enum_test'];
+        self::assertSame(['new'], $config['initial_marking']);
+        self::assertSame(['new', 'done'], array_column($config['places'], 'name'));
+        self::assertSame(['next' => ['finish'], 'label' => 'New', 'description' => 'Discovered'], $config['places'][0]['metadata']);
+        self::assertSame([['place' => 'new']], $config['transitions'][0]['from']);
+        self::assertSame([['place' => 'done']], $config['transitions'][0]['to']);
+        self::assertSame('Finish', $config['transitions'][0]['metadata']['label']);
     }
 
     public function testAsWorkflowIsTheNativeAttribute(): void
@@ -52,27 +98,6 @@ final class AttributesTest extends TestCase
     {
         $this->expectException(LogicException::class);
         new Place('Discovered', metadata: ['description' => 'old']);
-    }
-
-    public function testTypedAsyncOptionsRemainOptionalMetadata(): void
-    {
-        $native = new Transition('a', 'b');
-        self::assertArrayNotHasKey('async', $native->metadata);
-        $async = new Transition('a', 'b', description: 'Fetch', async: true, transport: 'downloads');
-        self::assertSame(['async' => true, 'transport' => 'downloads', 'description' => 'Fetch'], $async->metadata);
-        self::assertSame($async->metadata, (new Transition('a', 'b', metadata: $async->metadata))->metadata);
-    }
-
-    public function testTransportCannotSilentlyEnableAsync(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        new Transition('a', 'b', transport: 'downloads');
-    }
-
-    public function testConflictingAsyncMetadataIsRejected(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        new Transition('a', 'b', metadata: ['async' => false], async: true);
     }
 
     public function testNullDescriptionPreservesNativeMetadata(): void
@@ -102,4 +127,19 @@ final class AttributesTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         (new NextTransitionResolver())->firstEnabled($workflow, $subject, ['go', 'typo']);
     }
+}
+
+enum EnumPlace: string
+{
+    #[Place('Discovered', 'New', 'finish', true)]
+    case New = 'new';
+    #[Place('Completed', 'Done')]
+    case Done = 'done';
+}
+
+#[AsWorkflow(name: 'enum_test', places: EnumPlace::class)]
+final class EnumDefinition
+{
+    #[Transition(EnumPlace::New, EnumPlace::Done, label: 'Finish')]
+    public const FINISH = 'finish';
 }
