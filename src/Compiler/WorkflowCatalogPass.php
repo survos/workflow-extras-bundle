@@ -19,6 +19,7 @@ final class WorkflowCatalogPass implements CompilerPassInterface
         $definitions = $services = [];
         foreach ($container->findTaggedServiceIds('workflow') as $id => $tags) {
             foreach ($tags as $tag) {
+                self::requireNativeTag($tag);
                 $name = $tag['name'];
                 $workflow = $container->getDefinition($id);
                 $definitions[$name] = [
@@ -35,6 +36,17 @@ final class WorkflowCatalogPass implements CompilerPassInterface
         ksort($definitions);
         $container->register(WorkflowCatalog::class, WorkflowCatalog::class)
             ->setArguments([ServiceLocatorTagPass::register($container, $services), $definitions]);
+    }
+
+    /**
+     * The workflow tag carries supports, support_strategy and source_class since
+     * symfony/symfony#66926; fail clearly on an older FrameworkBundle.
+     */
+    public static function requireNativeTag(array $tag): void
+    {
+        if (!array_key_exists('source_class', $tag) || !array_key_exists('supports', $tag)) {
+            throw new \LogicException(sprintf('The "workflow" tag of "%s" has no "source_class": survos/workflow-extras-bundle needs symfony/framework-bundle and symfony/workflow 8.2 with symfony/symfony#66926.', $tag['name'] ?? '?'));
+        }
     }
 
     /** The native method marking store's property; null for a custom marking store service. */

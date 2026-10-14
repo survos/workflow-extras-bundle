@@ -18,6 +18,7 @@ final class DefaultLabelsPass implements CompilerPassInterface
     {
         foreach ($container->findTaggedServiceIds('workflow') as $tags) {
             foreach ($tags as $tag) {
+                WorkflowCatalogPass::requireNativeTag($tag);
                 // Native since symfony/symfony#66926; null for configuration-defined workflows.
                 if (null !== $tag['source_class']) {
                     self::label($container, $tag['source_class'], $container->getDefinition($tag['definition_id']));
