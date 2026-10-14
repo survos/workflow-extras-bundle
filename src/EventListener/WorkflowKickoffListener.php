@@ -17,7 +17,7 @@ use Symfony\Contracts\Service\ResetInterface;
 #[AsDoctrineListener(event: Events::postFlush)]
 final class WorkflowKickoffListener implements ResetInterface
 {
-    /** @var array<int, array<string, array{WorkflowContinuationInterface, object, array, bool}>> */
+    /** @var array<int, array<string, array{WorkflowContinuationInterface, object, array, bool, ?\Symfony\Component\Workflow\Transition}>> */
     private array $pending = [];
     private bool $dispatching = false;
 
@@ -32,7 +32,7 @@ final class WorkflowKickoffListener implements ResetInterface
         foreach ($this->continuations as $adapter) {
             if ($adapter->supports($subject)) {
                 $key = spl_object_id($adapter).':'.spl_object_id($subject);
-                $this->pending[spl_object_id($event->getObjectManager())][$key] ??= [$adapter, $subject, [], true];
+                $this->pending[spl_object_id($event->getObjectManager())][$key] ??= [$adapter, $subject, [], true, null];
             }
         }
     }
@@ -42,10 +42,13 @@ final class WorkflowKickoffListener implements ResetInterface
     {
         // Completion may happen outside a Doctrine listener; defer it until the
         // matching manager flushes. The adapter identifies its supported workflow.
+        if ($event->getContext()['workflow_extras.defer'] ?? false) {
+            return;
+        }
         $subject = $event->getSubject();
         foreach ($this->continuations as $adapter) {
             if ($adapter->supports($subject, $event->getWorkflowName())) {
-                $this->completed[spl_object_id($adapter).':'.spl_object_id($subject)] = [$adapter, $subject, $event->getContext(), false];
+                $this->completed[spl_object_id($adapter).':'.spl_object_id($subject)] = [$adapter, $subject, $event->getContext(), false, $event->getTransition()];
             }
         }
     }
@@ -73,11 +76,11 @@ final class WorkflowKickoffListener implements ResetInterface
             while (!empty($this->pending[$managerId])) {
                 $pending = $this->pending[$managerId];
                 unset($this->pending[$managerId]);
-                foreach ($pending as [$adapter, $subject, $context, $initial]) {
+                foreach ($pending as [$adapter, $subject, $context, $initial, $previous]) {
                     if ($initial) {
                         $adapter->kickoff($subject);
                     } else {
-                        $adapter->continueAfterFlush($subject, $context);
+                        $adapter->continueAfterFlush($subject, $context, $previous);
                     }
                 }
             }

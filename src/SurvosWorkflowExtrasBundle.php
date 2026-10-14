@@ -38,6 +38,14 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle
     {
         parent::loadExtension($config, $container, $builder);
         $container->services()->set(NextTransitionResolver::class);
+        $container->services()->set(Service\DirectTransitionExecutor::class);
+        if (!$builder->hasAlias(Contract\TransitionExecutorInterface::class)) {
+            $container->services()->alias(Contract\TransitionExecutorInterface::class, Service\DirectTransitionExecutor::class);
+        }
+        $container->services()->set(Service\NextTransitionRunner::class)->autowire();
+        $container->services()->set(EventListener\NextTransitionListener::class)->autowire()
+            ->arg('$continuations', \Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator('workflow_extras.continuation'))
+            ->tag('kernel.event_listener', ['event' => 'workflow.completed', 'method' => 'completed', 'priority' => -1024]);
         if (class_exists(\Doctrine\Bundle\DoctrineBundle\DoctrineBundle::class)) {
             $container->services()->set(EventListener\WorkflowKickoffListener::class)
                 ->autoconfigure()

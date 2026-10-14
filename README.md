@@ -83,7 +83,7 @@ Native descriptions came from
 in [#66890](https://github.com/symfony/symfony/pull/66890). Core's dumpers already
 read them (`workflow:dump --with-metadata`, PlantUML), as does this bundle's optional explorer template.
 
-## Next selection, without automatic chaining
+## Next selection and synchronous continuation
 
 ```php
 $next = $resolver->firstEnabled($workflow, $subject, ['validate', 'reject']);
@@ -96,8 +96,19 @@ Inject `Survos\WorkflowExtrasBundle\Service\NextTransitionResolver`. It validate
 the entire candidate list, then selects the first transition enabled by native
 guards. It does not apply, enqueue, flush or commit anything. Native `can()` can
 initialize marking and run guard listeners, so selection is not guaranteed to be
-side-effect-free. This scaffold intentionally has no automatic entered/completed
-listener: safe persistence and chaining are a later integration milestone.
+side-effect-free. A shared completed-transition listener and next runner select the first enabled `next` candidate automatically. Extras uses DirectTransitionExecutor
+to call native apply(); workflow-messenger replaces that executor with message dispatch. Transition `next`
+metadata takes precedence over the active places; an explicit empty list stops.
+`cascade: none` suppresses chaining, and repeated marking/transition pairs raise a
+cycle error. The listener never flushes or dispatches messages.
+
+An opted-in persistence adapter takes precedence over immediate chaining. The
+Messenger executor requires saved state: its handler defers continuation during
+native apply, saves the subject, then invokes the same next runner. Direct native
+apply callers using Messenger need a persistence adapter (such as the optional
+Doctrine post-flush integration); do not expect completed events to dispatch
+before storage is safe. SubjectStoreInterface now provides reference(), load()
+and save(). Extras alone needs none of these Messenger contracts.
 
 ## Installation
 
@@ -130,7 +141,7 @@ runtime fails compilation with an installation/configuration hint.
 | Derived AsWorkflow/Place/Transition and metadata conveniences | Implemented |
 | Descriptions ([#66872](https://github.com/symfony/symfony/pull/66872)) | Native, description-first ([#66890](https://github.com/symfony/symfony/pull/66890)) |
 | Ordered first-enabled transition selection | Implemented |
-| Automatic `next` chaining after safe persistence | Planned |
+| Synchronous `next` chaining without Messenger | Implemented; persistence adapters can defer it |
 | Workflow iteration commands | Application-owned in packages; no generic persistence command yet |
 | Explorer template, graph controller and grouped transition paths | Implemented optional integration |
 | State-bundle migration and deprecation | After validated replacements and migration documentation |

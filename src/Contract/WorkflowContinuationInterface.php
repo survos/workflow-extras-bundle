@@ -11,5 +11,5 @@ interface WorkflowContinuationInterface
 
     public function kickoff(object $subject): void;
 
-    public function continueAfterFlush(object $subject, array $context = []): void;
+    public function continueAfterFlush(object $subject, array $context = [], ?\Symfony\Component\Workflow\Transition $previous = null): void;
 }

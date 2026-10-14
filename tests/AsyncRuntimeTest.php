@@ -41,6 +41,52 @@ final class AsyncRuntimeTest extends TestCase
         }
     }
 
+    public function testInitialNextCanStartWithoutMessenger(): void
+    {
+        $kernel = new ExtrasOnlyKernel(SyncDefinition::class);
+        try {
+            $kernel->boot();
+            $subject = new class {
+                public string $marking = SyncDefinition::NEW;
+            };
+            $kernel->getContainer()->get('test.next')->continue($kernel->getContainer()->get('test.workflow'), $subject);
+            self::assertSame(SyncDefinition::DONE, $subject->marking);
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
+    public function testCascadeCanBeStopped(): void
+    {
+        $kernel = new ExtrasOnlyKernel(SyncDefinition::class);
+        try {
+            $kernel->boot();
+            $subject = new class {
+                public string $marking = SyncDefinition::NEW;
+            };
+            $kernel->getContainer()->get('test.workflow')->apply($subject, SyncDefinition::START, ['cascade' => 'none']);
+            self::assertSame(SyncDefinition::LOADED, $subject->marking);
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
+    public function testContinuationCycleIsRejected(): void
+    {
+        $kernel = new ExtrasOnlyKernel(CycleDefinition::class);
+        try {
+            $kernel->boot();
+            $subject = new class {
+                public string $marking = 'new';
+            };
+            $this->expectException(\LogicException::class);
+            $this->expectExceptionMessage('cycle');
+            $kernel->getContainer()->get('test.workflow')->apply($subject, 'start');
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
     public function testSynchronousNextNeedsNoMessengerBundle(): void
     {
         $kernel = new ExtrasOnlyKernel(SyncDefinition::class);
@@ -51,7 +97,7 @@ final class AsyncRuntimeTest extends TestCase
             $subject = new class {
                 public string $marking = SyncDefinition::NEW;
             };
-            $workflow->apply($subject, SyncDefinition::FINISH);
+            $workflow->apply($subject, SyncDefinition::START);
             self::assertSame(SyncDefinition::DONE, $subject->marking);
         } finally {
             $kernel->shutdown();
@@ -97,6 +143,7 @@ final class ExtrasOnlyKernel extends AbstractKernel
         $services = $container->services()->defaults()->autowire()->autoconfigure();
         $services->set($this->definition);
         $services->alias('test.workflow', 'state_machine.test')->public();
+        $services->alias('test.next', \Survos\WorkflowExtrasBundle\Service\NextTransitionRunner::class)->public();
     }
 }
 
@@ -114,11 +161,24 @@ final class AsyncDefinition
 #[AsWorkflow(name: 'test')]
 final class SyncDefinition
 {
-    #[Place('New', initial: true, next: [self::FINISH])]
+    #[Place('New', initial: true, next: self::START)]
     public const NEW = 'new';
     #[Place('Done')]
     public const DONE = 'done';
-    #[Transition(self::NEW, self::DONE, 'Finish synchronously')]
+    #[Place('Loaded', next: [self::BLOCKED, self::FINISH])]
+    public const LOADED = 'loaded';
+    #[Transition(self::NEW, self::LOADED, 'Start')]
+    public const START = 'start';
+    #[Transition(self::LOADED, self::DONE, 'Blocked candidate')]
+    public const BLOCKED = 'blocked';
+
+    #[\Symfony\Component\Workflow\Attribute\AsGuardListener('test', self::BLOCKED)]
+    public function block(\Symfony\Component\Workflow\Event\GuardEvent $event): void
+    {
+        $event->setBlocked(true);
+    }
+
+    #[Transition(self::LOADED, self::DONE, 'Finish synchronously')]
     public const FINISH = 'finish';
 }
 
@@ -144,4 +204,17 @@ final class LabelDefinition
 
     #[Transition(self::WAITING_REVIEW, LabelPlace::Finished)]
     public const TRANSITION_FINISH_PROCESSING = 'finish';
+}
+
+#[AsWorkflow(name: 'test')]
+final class CycleDefinition
+{
+    #[Place(initial: true)]
+    public const NEW = 'new';
+    #[Place(next: 'again')]
+    public const RUNNING = 'running';
+    #[Transition(self::NEW, self::RUNNING)]
+    public const START = 'start';
+    #[Transition(self::RUNNING, self::RUNNING)]
+    public const AGAIN = 'again';
 }
