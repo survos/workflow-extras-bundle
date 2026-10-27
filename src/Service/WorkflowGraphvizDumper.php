@@ -83,7 +83,22 @@ class WorkflowGraphvizDumper implements DumperInterface
             $backgroundColor = $workflowMetadata->getMetadata('bgColor', $place) ?? $workflowMetadata->getMetadata('bg_color', $place);
             if (null !== $backgroundColor) {
                 $attributes['style'] = 'rounded,filled';
-                $attributes['fillcolor'] = $backgroundColor;
+                // Semantic UI colors are not Graphviz color names.
+                // Use pale fills with the default dark label for readable diagrams.
+                $attributes['fillcolor'] = match ($backgroundColor) {
+                    'primary' => '#dbeafe',
+                    'secondary' => '#e2e8f0',
+                    'success' => '#dcfce7',
+                    'danger' => '#fee2e2',
+                    'warning' => '#fef3c7',
+                    'info' => '#cffafe',
+                    'light' => '#f8fafc',
+                    'dark' => '#334155',
+                    default => $backgroundColor,
+                };
+                if ('dark' === $backgroundColor) {
+                    $attributes['fontcolor'] = '#ffffff';
+                }
             }
             $label = $workflowMetadata->getMetadata('label', $place);
             if (null !== $label) {
