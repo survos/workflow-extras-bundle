@@ -183,22 +183,46 @@ class WorkflowGraphvizDumper implements DumperInterface
                 $attributes['tooltip'] .= ' — Guard: '.$this->normalizeTooltip($guard);
             }
 
-            $path = 0;
-            foreach ($transition->getFroms() as $from) {
-                foreach ($transition->getTos() as $to) {
-                    // The SVG id lets the explorer map an edge back to its transition (names may repeat).
+            $guardText = is_string($guard) ? $guard : '';
+            $guardLabel = $workflowMetadata->getMetadata('guardLabel', $transition);
+            $froms = $transition->getFroms();
+            $tos = $transition->getTos();
+
+            // A fork or join (several froms or tos) is drawn through one small bar, not a from x to fan of edges.
+            if (\count($froms) > 1 || \count($tos) > 1) {
+                $hub = 'hub_'.$index;
+                $attributes['id'] = sprintf('wf-transition-%d-0', $index);
+                $hubAttributes = ['tooltip' => $attributes['tooltip']];
+                $edges[$hub.'__node'] = [
+                    'hub' => $hub,
+                    'name' => $transitionName,
+                    'async' => $async,
+                    'guard' => $guardText,
+                    'guardLabel' => $guardLabel,
+                    'attributes' => $hubAttributes,
+                ];
+                $path = 0;
+                foreach ($froms as $from) {
                     $attributes['id'] = sprintf('wf-transition-%d-%d', $index, $path++);
-                    $edge = [
-                        'name' => $transitionName,
-                        'async' => $async,
-                        'guard' => is_string($guard) ? $guard : '',
-                        'guardLabel' => $workflowMetadata->getMetadata('guardLabel', $transition),
-                        'to' => $to,
-                        'attributes' => $attributes,
-                    ];
-                    $edges[$from][] = $edge;
+                    $edges[] = ['from' => $from, 'to' => $hub, 'name' => '', 'async' => $async, 'guard' => '', 'guardLabel' => null, 'attributes' => $attributes + ['arrowhead' => 'none']];
                 }
+                foreach ($tos as $to) {
+                    $attributes['id'] = sprintf('wf-transition-%d-%d', $index, $path++);
+                    $edges[] = ['from' => $hub, 'to' => $to, 'name' => '', 'async' => $async, 'guard' => '', 'guardLabel' => null, 'attributes' => $attributes];
+                }
+                continue;
             }
+
+            $attributes['id'] = sprintf('wf-transition-%d-0', $index);
+            $edges[] = [
+                'from' => $froms[0],
+                'to' => $tos[0],
+                'name' => $transitionName,
+                'async' => $async,
+                'guard' => $guardText,
+                'guardLabel' => $guardLabel,
+                'attributes' => $attributes,
+            ];
         }
 
         return $edges;
@@ -211,17 +235,25 @@ class WorkflowGraphvizDumper implements DumperInterface
     {
         $code = '';
 
-        foreach ($edges as $id => $edges) {
-            foreach ($edges as $edge) {
+        foreach ($edges as $edge) {
+            if (isset($edge['hub'])) {
                 $code .= sprintf(
-                    "  place_%s -> place_%s [label=%s style=\"%s\"%s];\n",
-                    $this->dotize($id),
-                    $this->dotize($edge['to']),
+                    "  place_%s [label=%s, shape=box, style=\"rounded,filled\", fillcolor=\"#e2e8f0\", color=\"#94a3b8\", fontcolor=\"#334155\", fontsize=11, margin=\"0.12,0.06\", class=\"wf-hub\"%s];\n",
+                    $this->dotize($edge['hub']),
                     $this->edgeLabel($edge['name'], $edge['guard'], $edge['guardLabel'], $edge['async']),
-                    $edge['async'] ? 'dashed' : 'solid',
                     $this->addAttributes($edge['attributes'])
                 );
+                continue;
             }
+            $label = '' === $edge['name'] ? '""' : $this->edgeLabel($edge['name'], $edge['guard'], $edge['guardLabel'], $edge['async']);
+            $code .= sprintf(
+                "  place_%s -> place_%s [label=%s style=\"%s\"%s];\n",
+                $this->dotize($edge['from'] ?? ''),
+                $this->dotize($edge['to'] ?? ''),
+                $label,
+                $edge['async'] ? 'dashed' : 'solid',
+                $this->addAttributes($edge['attributes'])
+            );
         }
 
         return $code;

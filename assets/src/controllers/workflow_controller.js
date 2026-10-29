@@ -44,7 +44,7 @@ export default class extends Controller {
         if (!this.svg) return;
         this.initialViewBox = this.svg.getAttribute('viewBox').split(/\s+/).map(Number);
         this.viewBox = [...this.initialViewBox];
-        this.nodes = [...target.querySelectorAll('g.node')];
+        this.nodes = [...target.querySelectorAll('g.node:not(.wf-hub)')];
         this.edges = [...target.querySelectorAll('g.edge')];
         this.events?.abort();
         this.events = new AbortController();

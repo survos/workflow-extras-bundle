@@ -12,7 +12,6 @@ use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\RouterInterface;
-use Symfony\Component\Workflow\Dumper\GraphvizDumper;
 use Symfony\Component\Workflow\Marking;
 use Twig\Environment;
 
@@ -36,7 +35,7 @@ final readonly class WorkflowController
         $twig = $this->twig ?? throw new \LogicException('The workflow explorer needs Twig: composer require symfony/twig-bundle.');
         $definition = $this->catalog->all()[$flowCode] ?? throw new NotFoundHttpException('Unknown workflow.');
         $workflow = $this->catalog->get($flowCode);
-        $dumper = 'state_machine' === $definition['type'] ? new WorkflowGraphvizDumper() : new GraphvizDumper();
+        $dumper = new WorkflowGraphvizDumper();
 
         return new Response($twig->render('@SurvosWorkflowExtras/workflow.html.twig', [
             'flowCode' => $flowCode,
