@@ -10,6 +10,11 @@ use Symfony\Component\Workflow\WorkflowInterface;
 
 final readonly class NextTransitionRunner
 {
+    /** Context key counting the transitions one continuation has chained so far. */
+    public const string HOPS = 'workflow_extras.hops';
+    /** A chain this long is a runaway loop, not a pipeline; a legitimate repeat (e.g. a retry self-loop) stays well under it. */
+    public const int MAX_HOPS = 50;
+
     public function __construct(private NextTransitionResolver $resolver, private TransitionExecutorInterface $executor)
     {
     }
@@ -46,12 +51,11 @@ final readonly class NextTransitionRunner
         if (null === $name) {
             return null;
         }
-        ksort($marking);
-        $step = hash('sha256', serialize([$workflow->getName(), $marking, $name]));
-        if (isset($context['workflow_extras.visited'][$step])) {
-            throw new \LogicException('A next-transition cycle was detected.');
+        $hops = ($context[self::HOPS] ?? 0) + 1;
+        if ($hops > self::MAX_HOPS) {
+            throw new \LogicException(sprintf('A next-transition cycle was detected: %d transitions were chained in "%s" without stopping.', self::MAX_HOPS, $workflow->getName()));
         }
-        $context['workflow_extras.visited'][$step] = true;
+        $context[self::HOPS] = $hops;
         $this->executor->execute($workflow, $subject, $name, $context);
 
         return $name;

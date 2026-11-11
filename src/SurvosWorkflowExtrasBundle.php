@@ -50,7 +50,8 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle implements C
         $container->services()->set(Service\NextTransitionRunner::class)->autowire();
         $container->services()->set(EventListener\NextTransitionListener::class)->autowire()
             ->tag('kernel.event_listener', ['event' => 'workflow.completed', 'method' => 'completed', 'priority' => -1024]);
-        if (class_exists(\Doctrine\Bundle\DoctrineBundle\DoctrineBundle::class)) {
+        // Installed is not enough: these autowire the Doctrine registry, which only a kernel that loads the bundle has.
+        if (class_exists(\Doctrine\Bundle\DoctrineBundle\DoctrineBundle::class) && isset($builder->getParameter('kernel.bundles')['DoctrineBundle'])) {
             $container->services()->set(EventListener\WorkflowKickoffListener::class)
                 ->autowire()->autoconfigure();
             if (class_exists(\Symfony\Component\Console\Command\Command::class)) {
@@ -59,7 +60,7 @@ final class SurvosWorkflowExtrasBundle extends AbstractSurvosBundle implements C
                     ->autowire()->autoconfigure();
             }
         }
-        if ($config['routes_enabled'] && class_exists(\Survos\MenuBundle\SurvosMenuBundle::class)) {
+        if ($config['routes_enabled'] && class_exists(\Survos\MenuBundle\SurvosMenuBundle::class) && isset($builder->getParameter('kernel.bundles')['SurvosMenuBundle'])) {
             $container->services()->set(Menu\WorkflowMenuListener::class)->autowire()->autoconfigure();
         }
         if (class_exists(\Twig\Extension\AbstractExtension::class)) {
