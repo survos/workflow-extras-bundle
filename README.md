@@ -216,6 +216,10 @@ entities created along the way are handled in-process too. `--cascade=none` runs
 only the selected transition. A state machine's place is filtered in SQL through
 its marking property; other workflows are read per entity.
 
+When the executor implements `BatchingTransitionExecutorInterface` (workflow-messenger
+does), queued transitions are sent in one batch per 500 entities instead of one
+transport request each. `--sync` runs are not batched.
+
 ## Optional Doctrine continuation
 
 With DoctrineBundle installed, `WorkflowKickoffListener` needs no application code.

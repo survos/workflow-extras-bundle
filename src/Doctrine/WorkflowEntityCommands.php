@@ -7,6 +7,7 @@ namespace Survos\WorkflowExtrasBundle\Doctrine;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
+use Survos\WorkflowExtrasBundle\Contract\BatchingTransitionExecutorInterface;
 use Survos\WorkflowExtrasBundle\Contract\TransitionExecutorInterface;
 use Survos\WorkflowExtrasBundle\Service\NextTransitionRunner;
 use Survos\WorkflowExtrasBundle\Service\WorkflowCatalog;
@@ -25,6 +26,9 @@ use Symfony\Component\Workflow\WorkflowInterface;
  */
 final readonly class WorkflowEntityCommands
 {
+    /** Entities whose queued transitions are sent together by a batching executor. */
+    private const int DISPATCH_CHUNK = 500;
+
     public function __construct(
         private ManagerRegistry $doctrine,
         private WorkflowCatalog $catalog,
@@ -63,29 +67,42 @@ final readonly class WorkflowEntityCommands
             $query->andWhere(sprintf('e.%s IN (:places)', $column))->setParameter('places', $places);
         }
 
-        $run = function () use ($query, $em, $workflow, $transition, $places, $cascade, $limit, $io): array {
+        $run = function () use ($query, $em, $workflow, $transition, $places, $cascade, $limit, $io, $sync): array {
             $count = $skipped = 0;
             $progress = $io->createProgressBar();
-            foreach ($query->getQuery()->toIterable() as $subject) {
-                $progress->advance();
-                if (null !== $places && !array_intersect($places, array_keys($workflow->getMarking($subject)->getPlaces()))) {
-                    continue;
+            $rows = (static fn () => yield from $query->getQuery()->toIterable())();
+            // Up to DISPATCH_CHUNK entities; false once the rows or the limit are exhausted.
+            $chunk = function () use ($rows, $em, $workflow, $transition, $places, $cascade, $limit, $progress, &$count, &$skipped): bool {
+                for ($seen = 0; $rows->valid() && $seen < self::DISPATCH_CHUNK; ++$seen) {
+                    $subject = $rows->current();
+                    $rows->next();
+                    $progress->advance();
+                    if (null !== $places && !array_intersect($places, array_keys($workflow->getMarking($subject)->getPlaces()))) {
+                        continue;
+                    }
+                    if (null === $transition) {
+                        // The place's own `next`, as a kickoff would have run it.
+                        $started = null !== $this->next->start($workflow, $subject, ['cascade' => $cascade]);
+                    } elseif ($started = $workflow->can($subject, $transition)) {
+                        $this->executor->execute($workflow, $subject, $transition, ['cascade' => $cascade]);
+                    }
+                    $started ? ++$count : ++$skipped;
+                    if (!$this->executor->requiresSavedSubject()) {
+                        $em->flush();
+                    }
+                    $em->clear();
+                    if ($limit && $count >= $limit) {
+                        return false;
+                    }
                 }
-                if (null === $transition) {
-                    // The place's own `next`, as a kickoff would have run it.
-                    $started = null !== $this->next->start($workflow, $subject, ['cascade' => $cascade]);
-                } elseif ($started = $workflow->can($subject, $transition)) {
-                    $this->executor->execute($workflow, $subject, $transition, ['cascade' => $cascade]);
-                }
-                $started ? ++$count : ++$skipped;
-                if (!$this->executor->requiresSavedSubject()) {
-                    $em->flush();
-                }
-                $em->clear();
-                if ($limit && $count >= $limit) {
-                    break;
-                }
-            }
+
+                return $rows->valid();
+            };
+            // A queuing executor sends each chunk in one batch instead of one transport request per entity.
+            $batching = !$sync && $this->executor instanceof BatchingTransitionExecutorInterface;
+            do {
+                $more = $batching ? $this->executor->batched($chunk) : $chunk();
+            } while ($more);
             $progress->finish();
             $io->newLine();
 
